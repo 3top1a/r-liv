@@ -1,152 +1,114 @@
 extern crate vulkano;
-extern crate winit;
 extern crate vulkano_win;
+extern crate winit;
 
-use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, SubpassContents};
-use vulkano::device::physical::{PhysicalDevice, PhysicalDeviceType};
-use vulkano::device::{Device, DeviceCreateInfo, DeviceExtensions, QueueCreateInfo};
-use vulkano::image::view::ImageView;
-use vulkano::image::{ImageAccess, SwapchainImage};
-use vulkano::instance::{Instance, InstanceCreateInfo};
-use vulkano::pipeline::graphics::viewport::Viewport;
-use vulkano::render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass};
-use vulkano::swapchain::{
-    self, AcquireError, Swapchain, SwapchainCreateInfo, SwapchainCreationError,
+use std::sync::Arc;
+
+use egui::{ScrollArea, TextEdit, TextStyle};
+use egui_winit_vulkano::Gui;
+use vulkano::{
+	device::{
+		physical::PhysicalDevice, Device, DeviceCreateInfo, DeviceExtensions, Features, Queue,
+		QueueCreateInfo,
+	},
+	image::{view::ImageView, ImageUsage, SwapchainImage},
+	instance::{Instance, InstanceCreateInfo, InstanceExtensions},
+	swapchain,
+	swapchain::{
+		AcquireError, PresentMode, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError,
+	},
+	sync,
+	sync::{FlushError, GpuFuture},
+	Version,
 };
-use vulkano::sync::{self, FlushError, GpuFuture};
-use vulkano::Version;
-
 use vulkano_win::VkSurfaceBuild;
-
-use winit::event::{Event, WindowEvent};
-use winit::event_loop::{ControlFlow, EventLoop};
-use winit::window::{Window, WindowBuilder};
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Vertex {
-	pub position: [f32; 2],
-	pub uv: [f32; 2],
-}
-vulkano::impl_vertex!(Vertex, position, uv);
+use winit::{
+	event::{Event, WindowEvent},
+	event_loop::{ControlFlow, EventLoop},
+	window::{Window, WindowBuilder},
+};
 
 pub struct WindowData {
-	// Surface to draw onto
-	surface: std::sync::Arc<vulkano::swapchain::Surface<winit::window::Window>>,
+	#[allow(dead_code)]
+	pub instance: Arc<Instance>,
+	pub device: Arc<Device>,
+	pub surface: Arc<Surface<Window>>,
+	pub queue: Arc<Queue>,
+	pub swap_chain: Arc<Swapchain<Window>>,
+	pub final_images: Vec<Arc<ImageView<SwapchainImage<Window>>>>,
+	pub recreate_swapchain: bool,
+	pub previous_frame_end: Option<Box<dyn GpuFuture>>,
 }
 
-impl WindowData {
-	pub fn new() -> (WindowData, winit::event_loop::EventLoop<()>) {
-		let required_extensions = vulkano_win::required_extensions();
+// Quite a bit of this code has been copied from https://github.com/hakolao/egui_winit_vulkano/blob/master/examples/minimal.rs
+// Which is copyrighted under MIT
 
-		let instance = vulkano::instance::Instance::new(vulkano::instance::InstanceCreateInfo {
-			enabled_extensions: required_extensions,
+impl WindowData {
+	pub fn new(filename: String) -> (WindowData, winit::event_loop::EventLoop<()>) {
+		let event_loop = EventLoop::new();
+
+		// TODO Detect size from image from filename
+		let window_size = [1280u16, 720u16];
+
+		// TODO Detect name from image from filename
+		let window_title = format!("R-Liv | {}", filename);
+
+		//* Create renderer and all
+		// Add instance extensions based on needs
+		let instance_extensions = InstanceExtensions {
+			..vulkano_win::required_extensions()
+		};
+		// Create instance
+		let instance = Instance::new(InstanceCreateInfo {
+			application_version: Version::V1_2,
+			enabled_extensions: instance_extensions,
 			..Default::default()
 		})
-		.unwrap();
+		.expect("Failed to create instance");
 
-		let device_extensions = vulkano::device::DeviceExtensions {
-			khr_swapchain: true,
-			..vulkano::device::DeviceExtensions::none()
-		};
-
-		let event_loop = winit::event_loop::EventLoop::new();
-
-		let surface = winit::window::WindowBuilder::new()
-			.build_vk_surface(&event_loop, instance.clone())
-   			.unwrap();
-
-		let (physical_device, queue_family) = vulkano::device::physical::PhysicalDevice::enumerate(&instance)
-			.filter(|&p| p.supported_extensions().is_superset_of(&device_extensions))
-			.filter_map(|p| {
-				p.queue_families()
-					.find(|&q| q.supports_graphics() && q.supports_surface(&surface).unwrap_or(false))
-					.map(|q| (p, q))
-			})
-			.min_by_key(|(p, _)| match p.properties().device_type {
-				vulkano::device::physical::PhysicalDeviceType::DiscreteGpu => 0,
-				vulkano::device::physical::PhysicalDeviceType::IntegratedGpu => 1,
-				vulkano::device::physical::PhysicalDeviceType::VirtualGpu => 2,
-				vulkano::device::physical::PhysicalDeviceType::Cpu => 3,
-				vulkano::device::physical::PhysicalDeviceType::Other => 4,
-			})
-			.expect("no device available");
-
-		let (device, mut queues) = vulkano::device::Device::new(
-			physical_device,
-			vulkano::device::DeviceCreateInfo {
-				enabled_extensions: physical_device
-					.required_extensions()
-					.union(&device_extensions),
-
-				queue_create_infos: vec![vulkano::device::QueueCreateInfo::family(queue_family)],
-				..Default::default()
-			},
-		)
-		.unwrap();
-
-		let queue = queues.next().unwrap();
-
-		let (mut swapchain, images) = {
-			let caps = physical_device
-				.surface_capabilities(&surface, Default::default())
-				.unwrap();
-			let usage = caps.supported_usage_flags;
-			let alpha = caps.supported_composite_alpha.iter().next().unwrap();
-			let image_format = Some(
-				physical_device
-					.surface_formats(&surface, Default::default())
-					.unwrap()[0]
-					.0,
-			);
-
-			Swapchain::new(
-				device.clone(),
-				surface.clone(),
-				SwapchainCreateInfo {
-					min_image_count: caps.min_image_count,
-					image_format,
-					image_extent: surface.window().inner_size().into(),
-					image_usage: usage,
-					composite_alpha: alpha,
-					..Default::default()
-				},
-			)
-			.unwrap()
-		};
-
-		let render_pass = vulkano::single_pass_renderpass!(
-			device.clone(),
-			attachments: {
-				color: {
-					load: Clear,
-					store: Store,
-					format: swapchain.image_format(),
-					samples: 1,
+		// Get most performant device (physical)
+		let physical = PhysicalDevice::enumerate(&instance)
+			.fold(None, |acc, val| {
+				if acc.is_none() {
+					Some(val)
+				} else if acc.unwrap().properties().max_compute_shared_memory_size
+					>= val.properties().max_compute_shared_memory_size
+				{
+					acc
+				} else {
+					Some(val)
 				}
+			})
+			.expect("No physical device found");
+		println!("Using device {}", physical.properties().device_name);
+
+		// Create rendering surface along with window
+		let surface = WindowBuilder::new()
+			.with_inner_size(winit::dpi::LogicalSize::new(window_size[0], window_size[1]))
+			.with_title(window_title)
+			.build_vk_surface(&event_loop, instance.clone())
+			.expect("Failed to create vulkan surface & window");
+
+		// Create device
+		let (device, queue) = crate::utils::create_device(physical, surface.clone());
+		// Create swap chain & frame(s) to which we'll render
+		let (swap_chain, images) =
+			crate::utils::create_swap_chain(surface.clone(), physical, device.clone());
+		let previous_frame_end = Some(sync::now(device.clone()).boxed());
+
+		(
+			WindowData {
+				instance,
+				device,
+				surface,
+				queue,
+				swap_chain,
+				final_images: images,
+				previous_frame_end,
+				recreate_swapchain: false,
 			},
-			pass: {
-				color: [color],
-				depth_stencil: {}
-			}
+			event_loop,
 		)
-		.unwrap();
-
-		let mut viewport = Viewport {
-			origin: [0.0, 0.0],
-			dimensions: [0.0, 0.0],
-			depth_range: 0.0..1.0,
-		};
-
-		let mut framebuffers = window_size_dependent_setup(&images, render_pass.clone(), &mut viewport);
-
-		let mut recreate_swapchain = false;
-
-		let mut previous_frame_end = Some(Box::new(sync::now(device.clone())) as Box<dyn GpuFuture>);
-
-		previous_frame_end.as_mut().take().unwrap().cleanup_finished();
-
-		(WindowData { surface: surface }, event_loop)
 	}
 
 	pub fn loopd(
@@ -179,36 +141,64 @@ impl WindowData {
 				draw(&self);
 			}
 		});
+
+		// Create gui state (pass anything your state requires)
+		/*event_loop.run(move |event, _, control_flow| {
+			match event {
+				Event::WindowEvent { event, window_id }
+					if window_id == renderer.surface().window().id() =>
+				{
+					// Update Egui integration so the UI works!
+					let _pass_events_to_game = !gui.update(&event);
+					match event {
+						WindowEvent::Resized(_) => {
+							renderer.resize();
+						}
+						WindowEvent::ScaleFactorChanged { .. } => {
+							renderer.resize();
+						}
+						WindowEvent::CloseRequested => {
+							*control_flow = ControlFlow::Exit;
+						}
+						_ => (),
+					}
+				}
+				Event::RedrawRequested(window_id) if window_id == window_id => {
+					// Set immediate UI in redraw here
+					gui.immediate_ui(|gui| {
+						let ctx = gui.context();
+						egui::CentralPanel::default().show(&ctx, |ui| {
+							ui.vertical_centered(|ui| {
+								ui.add(egui::widgets::Label::new("Hi there!"));
+							});
+							ui.separator();
+							ui.columns(2, |columns| {
+								ScrollArea::vertical().id_source("source").show(
+									&mut columns[0],
+									|ui| {
+										ui.add(
+											TextEdit::multiline(&mut "asdasdasd".to_owned())
+												.font(TextStyle::Monospace),
+										);
+									},
+								);
+							});
+						});
+					});
+					// Render UI
+					renderer.render(&mut gui);
+				}
+				Event::MainEventsCleared => {
+					renderer.surface().window().request_redraw();
+				}
+				_ => (),
+			}
+		});*/
 	}
 }
 
-fn window_size_dependent_setup(
-    images: &[std::sync::Arc<SwapchainImage<Window>>],
-    render_pass: std::sync::Arc<RenderPass>,
-    viewport: &mut Viewport,
-) -> Vec<std::sync::Arc<Framebuffer>> {
-    let dimensions = images[0].dimensions().width_height();
-    viewport.dimensions = [dimensions[0] as f32, dimensions[1] as f32];
-
-    images
-        .iter()
-        .map(|image| {
-            let view = ImageView::new_default(image.clone()).unwrap();
-            Framebuffer::new(
-                render_pass.clone(),
-                FramebufferCreateInfo {
-                    attachments: vec![view],
-                    ..Default::default()
-                },
-            )
-            .unwrap()
-        })
-        .collect::<Vec<_>>()
-}
-
-
-pub fn run() {
-	let (data, eloop) = WindowData::new();
+pub fn run(filename: String) {
+	let (data, eloop) = WindowData::new(filename);
 
 	data.loopd(eloop, crate::ui::draw);
 }

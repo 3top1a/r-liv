@@ -10,3 +10,7 @@
 - ui.rs
     - Drawing the ui
     - Mostly extends window.rs
+- utils.rs
+	- The even more messy stuff that will never have to be rewritten
+- settings.rs
+

@@ -1,0 +1,5 @@
+R-Liv
+Copyright 2022 3top1a
+
+Some code in `src/window.rs` and `src/utils.rs` was created by hakolao under MIT.
+https://github.com/hakolao/egui_winit_vulkano/blob/master/examples/minimal.rs#L36

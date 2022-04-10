@@ -1,4 +1,5 @@
 mod ui;
+mod utils;
 mod window;
 
 fn main() {
@@ -6,5 +7,5 @@ fn main() {
 
 	let args: Vec<String> = std::env::args().collect();
 
-	window::run();
+	window::run(args[args.len() - 1].clone());
 }
