@@ -4,6 +4,8 @@ authors = ["3top1a"]
 version = "0.1.0"
 edition = "2021"
 
+#![windows_subsystem = "windows"]
+
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 image = "0.24.1"
