@@ -39,7 +39,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          components: rustfmt
+          components: rustfmt, ninja
       - name: Build
         uses: actions-rs/cargo@v1
         with:
