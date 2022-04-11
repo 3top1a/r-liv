@@ -68,7 +68,7 @@ pub fn draw(data: &window::WindowData) {
 }
 
 pub fn run(filename: String) {
-	let (data, eloop) = WindowData::new(filename);
+	let (data, eloop) = crate::window::WindowData::new(filename);
 
 	data.loopd(eloop, draw);
 }
