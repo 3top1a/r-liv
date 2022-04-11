@@ -10,10 +10,6 @@ edition = "2021"
 tokio = { version = "1", features = ["full"] }
 image = "0.24.1"
 vulkano = "0.29.0"
-vulkano-shaders = "0.29.0"
 winit = "0.26"
 bytemuck = { version = "1.9.1", features = ["derive", "extern_crate_std", "min_const_generics"] }
 vulkano-win = "0.29.0"
-vk-sys = "0.7.0"
-egui = "0.17.0"
-egui_winit_vulkano = "0.17.0"

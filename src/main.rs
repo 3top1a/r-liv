@@ -7,5 +7,5 @@ fn main() {
 
 	let args: Vec<String> = std::env::args().collect();
 
-	window::run(args[args.len() - 1].clone());
+	ui::run(args[args.len() - 1].clone());
 }

@@ -4,8 +4,6 @@ extern crate winit;
 
 use std::sync::Arc;
 
-use egui::{ScrollArea, TextEdit, TextStyle};
-use egui_winit_vulkano::Gui;
 use vulkano::{
 	device::{
 		physical::PhysicalDevice, Device, DeviceCreateInfo, DeviceExtensions, Features, Queue,
@@ -195,10 +193,4 @@ impl WindowData {
 			}
 		});*/
 	}
-}
-
-pub fn run(filename: String) {
-	let (data, eloop) = WindowData::new(filename);
-
-	data.loopd(eloop, crate::ui::draw);
 }

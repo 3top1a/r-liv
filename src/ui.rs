@@ -4,8 +4,6 @@ use crate::window;
 
 use std::sync::Arc;
 
-use egui::{ScrollArea, TextEdit, TextStyle};
-use egui_winit_vulkano::Gui;
 use vulkano::{
 	device::{
 		physical::PhysicalDevice, Device, DeviceCreateInfo, DeviceExtensions, Features, Queue,
@@ -67,4 +65,10 @@ pub fn draw(data: &window::WindowData) {
 			data.previous_frame_end = Some(sync::now(data.device.clone()).boxed());
 		}
 	}*/
+}
+
+pub fn run(filename: String) {
+	let (data, eloop) = WindowData::new(filename);
+
+	data.loopd(eloop, draw);
 }
