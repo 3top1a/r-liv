@@ -28,43 +28,28 @@ use winit::{
 	window::{Window, WindowBuilder},
 };
 
-pub fn draw(data: &window::WindowData) {
+pub fn draw(data: &mut window::WindowData, gui: &mut Gui) {
 	// Render GUI
-	/*let (image_num, suboptimal, acquire_future) =
-		match swapchain::acquire_next_image(data.swap_chain.clone(), None) {
-			Ok(r) => r,
-			Err(AcquireError::OutOfDate) => {
-				return;
-			}
-			Err(e) => panic!("Failed to acquire next image: {:?}", e),
-		};
-
+	if data.recreate_swapchain {
+		data.recreate_swapchain();
+	}
+	// Acquire next image in the swapchain and our image num index
+	let (image_num, suboptimal, acquire_future) =
+	match swapchain::acquire_next_image(data.swap_chain.clone(), None) {
+		Ok(r) => r,
+		Err(AcquireError::OutOfDate) => {
+			data.recreate_swapchain = true;
+			return;
+		}
+		Err(e) => panic!("Failed to acquire next image: {:?}", e),
+	};
+	if suboptimal {
+		data.recreate_swapchain = true;
+	};
+	// Render GUI
 	let future = data.previous_frame_end.take().unwrap().join(acquire_future);
-	let after_future = data
-		.gui
-		.draw_on_image(future, data.final_images[image_num].clone());
+	let after_future = gui.draw_on_image(future, data.final_images[image_num].clone());
 
 	// Finish render
-	let future = after_future
-		.then_swapchain_present(data.queue.clone(), data.swap_chain.clone(), image_num)
-		.then_signal_fence_and_flush();
-	match future {
-		Ok(future) => {
-			// A hack to prevent OutOfMemory error on Nvidia :(
-			// https://github.com/vulkano-rs/vulkano/issues/627
-			match future.wait(None) {
-				Ok(x) => x,
-				Err(err) => println!("err: {:?}", err),
-			}
-			data.previous_frame_end = Some(future.boxed());
-		}
-		Err(FlushError::OutOfDate) => {
-			data.recreate_swapchain = true;
-			data.previous_frame_end = Some(sync::now(data.device.clone()).boxed());
-		}
-		Err(e) => {
-			println!("Failed to flush future: {:?}", e);
-			data.previous_frame_end = Some(sync::now(data.device.clone()).boxed());
-		}
-	}*/
+	data.finish(after_future, image_num);
 }

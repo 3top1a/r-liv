@@ -112,10 +112,12 @@ impl WindowData {
 	}
 
 	pub fn loopd(
-		self,
+		mut self,
 		event_loop: winit::event_loop::EventLoop<()>,
-		draw: for<'r> fn(&'r WindowData),
+		draw: for<'r, 's> fn(&'r mut WindowData, &'s mut egui_winit_vulkano::Gui),
 	) {
+		let mut gui = Gui::new(self.surface.clone(), self.queue.clone(), false);
+
 		event_loop.run(move |event, _, control_flow| {
 			let event_ref = &event;
 
@@ -138,7 +140,7 @@ impl WindowData {
 			}
 
 			if let winit::event::Event::RedrawRequested { .. } = event_ref {
-				draw(&self);
+				draw(&mut self, &mut gui);
 			}
 		});
 
@@ -195,6 +197,51 @@ impl WindowData {
 			}
 		});*/
 	}
+
+	pub fn recreate_swapchain(&mut self) {
+        let dimensions: [u32; 2] = self.surface.window().inner_size().into();
+        let (new_swapchain, new_images) = match self.swap_chain.recreate(SwapchainCreateInfo {
+            image_extent: dimensions,
+            ..self.swap_chain.create_info()
+        }) {
+            Ok(r) => r,
+            Err(SwapchainCreationError::ImageExtentNotSupported { .. }) => return,
+            Err(e) => panic!("Failed to recreate swapchain: {:?}", e),
+        };
+        self.swap_chain = new_swapchain;
+        let new_images = new_images
+            .into_iter()
+            .map(|image| ImageView::new_default(image).unwrap())
+            .collect::<Vec<_>>();
+        self.final_images = new_images;
+
+        self.recreate_swapchain = false;
+    }
+
+	pub fn finish(&mut self, after_future: Box<dyn GpuFuture>, image_num: usize) {
+        let future = after_future
+            .then_swapchain_present(self.queue.clone(), self.swap_chain.clone(), image_num)
+            .then_signal_fence_and_flush();
+        match future {
+            Ok(future) => {
+                // A hack to prevent OutOfMemory error on Nvidia :(
+                // https://github.com/vulkano-rs/vulkano/issues/627
+                match future.wait(None) {
+                    Ok(x) => x,
+                    Err(err) => println!("err: {:?}", err),
+                }
+                self.previous_frame_end = Some(future.boxed());
+            }
+            Err(FlushError::OutOfDate) => {
+                self.recreate_swapchain = true;
+                self.previous_frame_end = Some(sync::now(self.device.clone()).boxed());
+            }
+            Err(e) => {
+                println!("Failed to flush future: {:?}", e);
+                self.previous_frame_end = Some(sync::now(self.device.clone()).boxed());
+            }
+        }
+    }
 }
 
 pub fn run(filename: String) {
