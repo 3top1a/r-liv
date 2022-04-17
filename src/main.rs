@@ -1,3 +1,4 @@
+mod shaders;
 mod ui;
 mod utils;
 mod window;
@@ -7,5 +8,5 @@ fn main() {
 
 	let args: Vec<String> = std::env::args().collect();
 
-	window::run(args[args.len() - 1].clone());
+	window::main(args[args.len() - 1].clone());
 }
