@@ -18,12 +18,11 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
             toolchain: stable
-            components: rustfmt
       - name: Build
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --all-features
+          args: --release
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
@@ -31,7 +30,7 @@ jobs:
           path: target/release/r-liv
 
   build-windows:
-    runs-on: windows-2019
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v2
@@ -39,12 +38,12 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          components: rustfmt
+          components: ninja
       - name: Build
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --all-features
+          args: --release
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
