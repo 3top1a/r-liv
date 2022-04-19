@@ -9,7 +9,6 @@
 
 use std::{convert::TryFrom, sync::Arc};
 
-use bytemuck::{Pod, Zeroable};
 use egui_winit_vulkano::Gui;
 use vulkano::{
 	buffer::{BufferUsage, CpuAccessibleBuffer, TypedBufferAccess},
@@ -40,8 +39,7 @@ use vulkano::{
 };
 use vulkano_win::VkSurfaceBuild;
 use winit::{
-	event::{Event, WindowEvent},
-	event_loop::{ControlFlow, EventLoop},
+	event_loop::{EventLoop},
 	window::{Window, WindowBuilder},
 };
 
@@ -57,7 +55,7 @@ pub struct SimpleGuiRenderer {
 	final_images: Vec<Arc<ImageView<SwapchainImage<Window>>>>,
 	recreate_swapchain: bool,
 	previous_frame_end: Option<Box<dyn GpuFuture>>,
-	vertex_buffer: Arc<CpuAccessibleBuffer<[Vertex]>>,
+	vertex_buffer: Arc<CpuAccessibleBuffer<[crate::utils::Vertex]>>,
 }
 
 impl SimpleGuiRenderer {
@@ -113,22 +111,7 @@ impl SimpleGuiRenderer {
 				queue.device().clone(),
 				BufferUsage::all(),
 				false,
-				[
-					Vertex {
-						position: [-0.5, -0.25],
-						color: [1.0, 0.0, 0.0, 1.0],
-					},
-					Vertex {
-						position: [0.0, 0.5],
-						color: [0.0, 1.0, 0.0, 1.0],
-					},
-					Vertex {
-						position: [0.25, -0.1],
-						color: [0.0, 0.0, 1.0, 1.0],
-					},
-				]
-				.iter()
-				.cloned(),
+				crate::utils::QUAD.iter().cloned(),
 			)
 			.expect("failed to create buffer")
 		};
@@ -252,7 +235,7 @@ impl SimpleGuiRenderer {
 		let fs = crate::shaders::fs::load(device.clone()).expect("failed to create shader module");
 
 		GraphicsPipeline::start()
-			.vertex_input_state(BuffersDefinition::new().vertex::<Vertex>())
+			.vertex_input_state(BuffersDefinition::new().vertex::<crate::utils::Vertex>())
 			.vertex_shader(vs.entry_point("main").unwrap(), ())
 			.input_assembly_state(InputAssemblyState::new())
 			.fragment_shader(fs.entry_point("main").unwrap(), ())
@@ -409,11 +392,3 @@ impl SimpleGuiRenderer {
 		}
 	}
 }
-
-#[repr(C)]
-#[derive(Default, Debug, Copy, Clone, Zeroable, Pod)]
-struct Vertex {
-	position: [f32; 2],
-	color: [f32; 4],
-}
-vulkano::impl_vertex!(Vertex, position, color);
