@@ -31,7 +31,7 @@ use vulkano::{
 	render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass},
 	swapchain,
 	swapchain::{
-		AcquireError, PresentMode, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError,
+		AcquireError, PresentMode, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError
 	},
 	sync,
 	sync::{FlushError, GpuFuture},
@@ -45,6 +45,7 @@ use winit::{
 
 pub struct SimpleGuiRenderer {
 	#[allow(dead_code)]
+	// TODO not all needs to be public
 	instance: Arc<Instance>,
 	device: Arc<Device>,
 	surface: Arc<Surface<Window>>,
@@ -60,11 +61,11 @@ pub struct SimpleGuiRenderer {
 
 impl SimpleGuiRenderer {
 	pub fn new(
-		event_loop: &EventLoop<()>,
 		window_size: [u32; 2],
-		present_mode: PresentMode,
 		name: &str,
-	) -> Self {
+	) -> (Self, EventLoop<()>) {
+		let event_loop = EventLoop::new();
+
 		// Add instance extensions based on needs
 		let instance_extensions = InstanceExtensions {
 			..vulkano_win::required_extensions()
@@ -95,13 +96,13 @@ impl SimpleGuiRenderer {
 		let surface = WindowBuilder::new()
 			.with_inner_size(winit::dpi::LogicalSize::new(window_size[0], window_size[1]))
 			.with_title(name)
-			.build_vk_surface(event_loop, instance.clone())
+			.build_vk_surface(&event_loop, instance.clone())
 			.expect("Failed to create vulkan surface & window");
 		// Create device
 		let (device, queue) = Self::create_device(physical, surface.clone());
 		// Create swap chain & frame(s) to which we'll render
 		let (swap_chain, images) =
-			Self::create_swap_chain(surface.clone(), physical, device.clone(), present_mode);
+			Self::create_swap_chain(surface.clone(), physical, device.clone(), PresentMode::Fifo);
 		let previous_frame_end = Some(sync::now(device.clone()).boxed());
 		let render_pass = Self::create_render_pass(device.clone(), images[0].format().unwrap());
 		let pipeline = Self::create_pipeline(device.clone(), render_pass.clone());
@@ -116,19 +117,22 @@ impl SimpleGuiRenderer {
 			.expect("failed to create buffer")
 		};
 
-		Self {
-			instance,
-			device,
-			surface,
-			queue,
-			render_pass,
-			pipeline,
-			swap_chain,
-			final_images: images,
-			previous_frame_end,
-			recreate_swapchain: false,
-			vertex_buffer,
-		}
+		(
+			Self {
+				instance,
+				device,
+				surface,
+				queue,
+				render_pass,
+				pipeline,
+				swap_chain,
+				final_images: images,
+				previous_frame_end,
+				recreate_swapchain: false,
+				vertex_buffer,
+			},
+			event_loop
+		)
 	}
 
 	/// Creates vulkan device with required queue families and required extensions

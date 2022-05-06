@@ -1,16 +1,15 @@
 # Architecture
 
-## Files
 
-- main.rs
-    - Entry point
-- window.rs
-    - Window creation and event handling
-    - Taking care of the messy stuff
-- ui.rs
-    - Drawing the ui
-    - Mostly extends window.rs
-- utils.rs
-	- The even more messy stuff that will never have to be rewritten
-- settings.rs
+Window:
+- Redraw
+- Resize
+	- Full screen: Resize triangle
+	- Windowed: Resize window
+- Move
+	- Full screen: Move triangle
+	- Windowed: Move window
+- Next/Previous image
+	- Set window data's image as option from thread
+- Close
 

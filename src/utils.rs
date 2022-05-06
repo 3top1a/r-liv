@@ -10,44 +10,28 @@ extern crate vulkano;
 extern crate vulkano_win;
 extern crate winit;
 
-pub fn get_file_name_from_path(filename: String) -> String {
-	// TODO
-	return filename;
+use std::path::Path;
+
+pub fn get_file_stem<P: AsRef<Path>>(path: P) -> String {
+	path.as_ref()
+		.file_stem()
+		.map(|ext| ext.to_os_string())
+		.unwrap_or_else(|| "".into())
+		.into_string()
+		.unwrap()
 }
 
-/*Vertex {
-							position: [0.0, 0.0],
-							tex_coords: [0.0, 0.0],
-						},
-						Vertex {
-							position: [0.0, 1.0],
-							tex_coords: [0.0, 1.0],
-						},
-						Vertex {
-							position: [1.0, 1.0],
-							tex_coords: [1.0, 1.0],
-						},
-						Vertex {
-							position: [1.0, 0.0],
-							tex_coords: [1.0, 0.0],
-						},
-*/
-
-pub const QUAD: [Vertex; 4] = [
+pub const QUAD: [Vertex; 3] = [
 	Vertex {
 		position: [-1.0, -1.0],
 		uv: [0.0, 0.0],
 	},
 	Vertex {
-		position: [-1.0, 1.0],
-		uv: [0.0, 1.0],
-	},
-	Vertex {
-		position: [1.0, 1.0],
+		position: [-0.5, 1.0],
 		uv: [1.0, 1.0],
 	},
 	Vertex {
-		position: [1.0, -1.0],
-		uv: [1.0, 0.0],
+		position: [-1.0, 0.5],
+		uv: [0.0, 1.0],
 	},
 ];
